@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Glicemia</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonte Google -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Ícones -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        /* Estilos específicos para impressão */
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background-color: white; }
+            #results-area { box-shadow: none; border: none; }
+        }
+        .app-container {
+            max-width: 480px;
+            margin: 0 auto;
+            min-height: 100vh;
+            background-color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container flex flex-col">
+        
+        <!-- Header -->
+        <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center no-print">
+            <div class="flex items-center gap-2">
+                <i data-lucide="activity" class="w-6 h-6"></i>
+                <h1 class="text-lg font-bold">GlicoControl</h1>
+            </div>
+            <button onclick="goHome()" class="p-2 hover:bg-blue-700 rounded-full transition" title="Início">
+                <i data-lucide="home" class="w-5 h-5"></i>
+            </button>
+        </header>
+
+        <!-- Configuração URL (Escondido se configurado, visível para setup inicial) -->
+        <div id="config-warning" class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 text-sm no-print hidden">
+            <p class="font-bold">Modo de Demonstração</p>
+            <p>Os dados estão sendo salvos na memória do navegador. Para salvar no Google Sheets, configure a URL no código.</p>
+        </div>
+
+        <!-- Tela 1: Home -->
+        <main id="screen-home" class="flex-1 flex flex-col justify-center items-center p-6 gap-6 transition-opacity duration-300">
+            <div class="text-center mb-8">
+                <div class="bg-blue-100 text-blue-600 rounded-full p-6 inline-block mb-4">
+                    <i data-lucide="heart-pulse" class="w-12 h-12"></i>
+                </div>
+                <h2 class="text-2xl font-semibold text-gray-800">Olá!</h2>
+                <p class="text-gray-500">O que deseja fazer hoje?</p>
+            </div>
+
+            <button onclick="navigate('screen-log')" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-medium py-4 px-6 rounded-xl shadow-lg flex items-center justify-center gap-3 transition transform hover:scale-105">
+                <i data-lucide="plus-circle" class="w-6 h-6"></i>
+                Marcar Medições
+            </button>
+
+            <button onclick="navigate('screen-consult')" class="w-full bg-white hover:bg-gray-50 text-blue-600 border-2 border-blue-100 text-lg font-medium py-4 px-6 rounded-xl shadow-sm flex items-center justify-center gap-3 transition transform hover:scale-105">
+                <i data-lucide="search" class="w-6 h-6"></i>
+                Consultar Medições
+            </button>
+        </main>
+
+        <!-- Tela 2: Marcar Medição -->
+        <main id="screen-log" class="hidden flex-1 p-6 transition-opacity duration-300">
+            <h2 class="text-xl font-bold text-gray-800 mb-6 border-b pb-2">Nova Medição</h2>
+            
+            <form id="log-form" onsubmit="handleSave(event)" class="flex flex-col gap-6">
+                
+                <div class="bg-blue-50 p-6 rounded-xl border border-blue-100 text-center">
+                    <label class="block text-blue-800 text-sm font-semibold mb-2">Valor da Glicemia (mg/dL)</label>
+                    <div class="relative max-w-[200px] mx-auto">
+                        <input type="number" id="glucose-value" required placeholder="000" class="text-4xl font-bold text-center text-blue-900 w-full bg-transparent border-b-2 border-blue-300 focus:border-blue-600 focus:outline-none py-2 placeholder-blue-200">
+                        <span class="absolute right-0 bottom-3 text-sm text-blue-400">mg/dL</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 text-sm text-gray-500">
+                    <div>
+                        <label class="block mb-1">Data</label>
+                        <input type="date" id="log-date" class="w-full p-3 bg-gray-100 rounded-lg border-none" readonly>
+                    </div>
+                    <div>
+                        <label class="block mb-1">Hora</label>
+                        <input type="time" id="log-time" class="w-full p-3 bg-gray-100 rounded-lg border-none" readonly>
+                    </div>
+                </div>
+
+                <button type="submit" id="btn-save" class="mt-auto w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition">
+                    <span id="btn-save-text">SALVAR MARCAÇÃO</span>
+                    <i data-lucide="check" class="w-5 h-5"></i>
+                </button>
+            </form>
+        </main>
+
+        <!-- Tela 3: Consultar -->
+        <main id="screen-consult" class="hidden flex-1 p-6 flex flex-col h-full">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 no-print">Consultar Histórico</h2>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 no-print">
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Data Inicial</label>
+                        <input type="date" id="filter-start" class="w-full mt-1 p-2 border rounded-lg text-gray-700 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Data Final</label>
+                        <input type="date" id="filter-end" class="w-full mt-1 p-2 border rounded-lg text-gray-700 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+                <button onclick="handleConsult()" id="btn-consult" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition flex justify-center gap-2 text-sm">
+                    <i data-lucide="filter"></i> Visualizar
+                </button>
+            </div>
+
+            <!-- Área de Resultados -->
+            <div id="results-area" class="hidden flex-1 flex flex-col">
+                <div class="flex justify-between items-center mb-3 no-print">
+                    <h3 class="font-bold text-gray-700">Resultados</h3>
+                    <button onclick="window.print()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition">
+                        <i data-lucide="printer" class="w-3 h-3"></i> IMPRIMIR
+                    </button>
+                </div>
+
+                <!-- Cabeçalho de Impressão (Só aparece na impressão) -->
+                <div class="hidden print-only mb-4 text-center">
+                    <h1 class="text-2xl font-bold">Relatório de Glicemia</h1>
+                    <p id="print-date-range" class="text-gray-600"></p>
+                </div>
+
+                <div class="overflow-auto flex-1 border rounded-lg">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="p-3 text-xs font-bold text-gray-500 border-b">DATA</th>
+                                <th class="p-3 text-xs font-bold text-gray-500 border-b">HORA</th>
+                                <th class="p-3 text-xs font-bold text-gray-500 border-b text-right">GLICEMIA</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-table-body" class="text-sm">
+                            <!-- Linhas inseridas via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Resumo Estatístico Simples -->
+                <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100 text-xs text-blue-800 flex justify-between print-only-flex">
+                    <span>Média do período: <strong id="stats-avg">--</strong></span>
+                    <span>Total de medições: <strong id="stats-count">0</strong></span>
+                </div>
+            </div>
+            
+            <!-- Estado Vazio -->
+            <div id="empty-state" class="hidden flex-1 flex flex-col justify-center items-center text-gray-400 mt-8">
+                <i data-lucide="clipboard-list" class="w-12 h-12 mb-2 opacity-20"></i>
+                <p class="text-sm">Nenhum dado encontrado para este período.</p>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- Modal de Loading/Feedback -->
+    <div id="loading-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-xl shadow-xl flex flex-col items-center">
+            <div id="spinner" class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3"></div>
+            <p id="loading-text" class="text-gray-700 font-medium">Processando...</p>
+        </div>
+    </div>
+
+    <script>
+        // =================================================================
+        // CONFIGURAÇÃO
+        // =================================================================
+        
+        // *** IMPORTANTE: Substitua pela URL do seu Web App do Apps Script ***
+        // Se deixar vazio, o app funcionará em "Modo Demonstração" (Offline)
+        const GOOGLE_SCRIPT_URL = ""; 
+
+        // =================================================================
+        // LÓGICA DO APP
+        // =================================================================
+
+        // Inicialização
+        lucide.createIcons();
+        
+        // Preenche data/hora automaticamente ao carregar e a cada minuto
+        function updateDateTime() {
+            const now = new Date();
+            // Formato YYYY-MM-DD para o input date
+            document.getElementById('log-date').value = now.toISOString().split('T')[0];
+            // Formato HH:MM para o input time
+            document.getElementById('log-time').value = now.toTimeString().slice(0,5);
+            
+            // Preenche filtros default (início do mês até hoje)
+            if(!document.getElementById('filter-end').value) {
+                document.getElementById('filter-end').value = now.toISOString().split('T')[0];
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                document.getElementById('filter-start').value = firstDay.toISOString().split('T')[0];
+            }
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 60000);
+
+        if (GOOGLE_SCRIPT_URL === "") {
+            document.getElementById('config-warning').classList.remove('hidden');
+        }
+
+        // Navegação
+        function navigate(screenId) {
+            ['screen-home', 'screen-log', 'screen-consult'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(screenId).classList.remove('hidden');
+            
+            // Foca no input se for tela de log
+            if(screenId === 'screen-log') {
+                setTimeout(() => document.getElementById('glucose-value').focus(), 100);
+            }
+        }
+
+        function goHome() {
+            navigate('screen-home');
+            document.getElementById('glucose-value').value = '';
+            document.getElementById('results-area').classList.add('hidden');
+            document.getElementById('empty-state').classList.add('hidden');
+        }
+
+        function showLoading(show, text = "Processando...") {
+            const modal = document.getElementById('loading-modal');
+            const txt = document.getElementById('loading-text');
+            txt.innerText = text;
+            if(show) modal.classList.remove('hidden');
+            else modal.classList.add('hidden');
+        }
+
+        // =================================================================
+        // FUNÇÕES DE DADOS (SAVE/READ)
+        // =================================================================
+
+        async function handleSave(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-save');
+            const val = document.getElementById('glucose-value').value;
+            
+            // Formata data para o padrão brasileiro DD/MM/AAAA
+            const rawDate = document.getElementById('log-date').value; // YYYY-MM-DD
+            const dateParts = rawDate.split('-');
+            const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+            
+            const time = document.getElementById('log-time').value;
+
+            const payload = {
+                action: 'save',
+                data: formattedDate,
+                hora: time,
+                glicemia: val
+            };
+
+            showLoading(true, "Salvando...");
+
+            try {
+                if (GOOGLE_SCRIPT_URL) {
+                    // Modo Real
+                    await fetch(GOOGLE_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify(payload),
+                        headers: { "Content-Type": "text/plain;charset=utf-8" } // Evita CORS preflight
+                    });
+                } else {
+                    // Modo Demo (LocalStorage)
+                    await mockSave(payload);
+                }
+                
+                showLoading(false);
+                alert('Medição salva com sucesso!');
+                goHome();
+
+            } catch (err) {
+                showLoading(false);
+                alert('Erro ao salvar: ' + err.message);
+            }
+        }
+
+        async function handleConsult() {
+            const start = document.getElementById('filter-start').value;
+            const end = document.getElementById('filter-end').value;
+
+            if (!start || !end) {
+                alert('Por favor, selecione as datas inicial e final.');
+                return;
+            }
+
+            showLoading(true, "Buscando dados...");
+
+            try {
+                let data = [];
+                if (GOOGLE_SCRIPT_URL) {
+                    // Modo Real
+                    const response = await fetch(GOOGLE_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({ action: 'read', startDate: start, endDate: end }),
+                        headers: { "Content-Type": "text/plain;charset=utf-8" }
+                    });
+                    const json = await response.json();
+                    data = json.data;
+                } else {
+                    // Modo Demo
+                    data = await mockRead(start, end);
+                }
+
+                renderResults(data, start, end);
+
+            } catch (err) {
+                console.error(err);
+                alert('Erro ao consultar: ' + err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderResults(data, startRaw, endRaw) {
+            const tbody = document.getElementById('results-table-body');
+            const area = document.getElementById('results-area');
+            const empty = document.getElementById('empty-state');
+            
+            tbody.innerHTML = '';
+            
+            // Formatar datas do filtro para o print
+            const sP = startRaw.split('-');
+            const eP = endRaw.split('-');
+            document.getElementById('print-date-range').innerText = `Período: ${sP[2]}/${sP[1]}/${sP[0]} a ${eP[2]}/${eP[1]}/${eP[0]}`;
+
+            if (!data || data.length === 0) {
+                area.classList.add('hidden');
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            let total = 0;
+            let sum = 0;
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b hover:bg-gray-50";
+                
+                // Colorir baseado no valor (Opcional - Lógica simples)
+                let valClass = "text-gray-800";
+                const val = parseFloat(row.glicemia);
+                if(val > 180) valClass = "text-red-600 font-bold";
+                else if (val < 70) valClass = "text-orange-500 font-bold";
+                else valClass = "text-green-600 font-bold";
+
+                sum += val;
+                total++;
+
+                tr.innerHTML = `
+                    <td class="p-3 text-gray-600">${row.data}</td>
+                    <td class="p-3 text-gray-600">${row.hora}</td>
+                    <td class="p-3 text-right ${valClass}">${row.glicemia} mg/dL</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('stats-count').innerText = total;
+            document.getElementById('stats-avg').innerText = total ? (sum/total).toFixed(0) + " mg/dL" : "--";
+
+            empty.classList.add('hidden');
+            area.classList.remove('hidden');
+        }
+
+        // =================================================================
+        // MOCK (Simulação para Demo sem Backend)
+        // =================================================================
+        const MOCK_KEY = 'glico_demo_data';
+        
+        function mockSave(payload) {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    const current = JSON.parse(localStorage.getItem(MOCK_KEY) || '[]');
+                    // Reestrutura para salvar formato YYYY-MM-DD para facilitar filtro no mock
+                    // Mas mantendo a estrutura visual DD/MM/AAAA
+                    current.push(payload);
+                    localStorage.setItem(MOCK_KEY, JSON.stringify(current));
+                    resolve();
+                }, 800); // Fake delay
+            });
+        }
+
+        function mockRead(start, end) {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    const all = JSON.parse(localStorage.getItem(MOCK_KEY) || '[]');
+                    const startDate = new Date(start + "T00:00:00");
+                    const endDate = new Date(end + "T23:59:59");
+                    
+                    const filtered = all.filter(item => {
+                        // item.data está em DD/MM/AAAA
+                        const parts = item.data.split('/');
+                        const itemDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+                        return itemDate >= startDate && itemDate <= endDate;
+                    });
+                    resolve(filtered);
+                }, 800);
+            });
+        }
+
+    </script>
+</body>
+</html>
