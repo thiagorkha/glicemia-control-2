@@ -185,7 +185,7 @@
         
         // *** IMPORTANTE: Substitua pela URL do seu Web App do Apps Script ***
         // Se deixar vazio, o app funcionará em "Modo Demonstração" (Offline)
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxG4Ci4h2mjo_ifZCCH_Ry1won_fVzMp-2tCxcraaGB-92FNSgR8qRURlg_gsPcbKn9/exec"; 
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzh_5Dd9ylVJrPP1sjLWFPglBwr4tLnpLLt3x9nsl3TZlcy_Nn2T80l4mYVixe3ylmC/exec"; 
 
         // =================================================================
         // LÓGICA DO APP
@@ -312,8 +312,18 @@
                         body: JSON.stringify({ action: 'read', startDate: start, endDate: end }),
                         headers: { "Content-Type": "text/plain;charset=utf-8" }
                     });
+                    
+                    if (!response.ok) {
+                        throw new Error('Erro na resposta do servidor: ' + response.status);
+                    }
+                    
                     const json = await response.json();
-                    data = json.data;
+                    
+                    if (json.result === 'error') {
+                        throw new Error(json.error || 'Erro desconhecido ao buscar dados');
+                    }
+                    
+                    data = json.data || [];
                 } else {
                     // Modo Demo
                     data = await mockRead(start, end);
@@ -322,7 +332,7 @@
                 renderResults(data, start, end);
 
             } catch (err) {
-                console.error(err);
+                console.error('Erro detalhado:', err);
                 alert('Erro ao consultar: ' + err.message);
             } finally {
                 showLoading(false);
