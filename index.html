@@ -185,7 +185,7 @@
         
         // *** IMPORTANTE: Substitua pela URL do seu Web App do Apps Script ***
         // Se deixar vazio, o app funcionará em "Modo Demonstração" (Offline)
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyTUehbMara_Z3GHgjwZ_Hp0Oy67Lco0OE3BGDod12b2p-3WSpUsui2_3P2nWdsefEh/exec"; 
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxu8qOaUSMHQbR8CHVl4uXGPsWFmzk_TJ2X7jtwUFNq-ZH6XFtgVAQxO0TJphqtdlZY/exec"; 
 
         // =================================================================
         // LÓGICA DO APP
@@ -324,21 +324,22 @@
                 return;
             }
 
+            console.log("[v0] ========== INICIANDO CONSULTA ==========");
+            console.log("[v0] Data inicial:", start);
+            console.log("[v0] Data final:", end);
+            console.log("[v0] URL do Apps Script:", GOOGLE_SCRIPT_URL);
+
             showLoading(true, "Buscando dados...");
 
             try {
                 let data = [];
                 if (GOOGLE_SCRIPT_URL) {
                     // Modo Real
-                    console.log("[v0] Consultando dados...");
-                    console.log("[v0] URL:", GOOGLE_SCRIPT_URL);
-                    console.log("[v0] Período:", start, "até", end);
-                    
                     const payload = { action: 'read', startDate: start, endDate: end };
-                    console.log("[v0] Payload:", payload);
+                    console.log("[v0] Enviando payload:", JSON.stringify(payload));
                     
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+                    const timeoutId = setTimeout(() => controller.abort(), 30000);
                     
                     const response = await fetch(GOOGLE_SCRIPT_URL, {
                         method: "POST",
@@ -350,34 +351,46 @@
                     
                     clearTimeout(timeoutId);
                     console.log("[v0] Status da resposta:", response.status);
-                    console.log("[v0] Headers:", response.headers);
                     
                     if (!response.ok) {
                         throw new Error(`Servidor retornou status ${response.status}`);
                     }
                     
                     const textResponse = await response.text();
-                    console.log("[v0] Resposta do servidor:", textResponse);
+                    console.log("[v0] Texto da resposta completo:", textResponse);
                     
                     const json = JSON.parse(textResponse);
                     console.log("[v0] JSON parseado:", json);
+                    console.log("[v0] Result:", json.result);
+                    console.log("[v0] Data array:", json.data);
+                    console.log("[v0] Quantidade de registros:", json.data ? json.data.length : 0);
                     
                     if (json.result === 'error') {
                         throw new Error(json.error || 'Erro desconhecido ao buscar dados');
                     }
                     
                     data = json.data || [];
-                    console.log("[v0] Dados recebidos:", data.length, "registros");
+                    
+                    if (data.length > 0) {
+                        console.log("[v0] Primeiro registro:", data[0]);
+                    } else {
+                        console.log("[v0] ATENÇÃO: Nenhum dado foi retornado!");
+                        console.log("[v0] Verifique os logs do Apps Script em: Extensões > Apps Script > Execuções");
+                    }
                 } else {
                     // Modo Demo
                     console.log("[v0] Modo demo - usando localStorage");
                     data = await mockRead(start, end);
                 }
 
+                console.log("[v0] Renderizando", data.length, "registros");
                 renderResults(data, start, end);
 
             } catch (err) {
-                console.error("[v0] Erro detalhado:", err);
+                console.error("[v0] ERRO CAPTURADO:", err);
+                console.error("[v0] Tipo do erro:", err.name);
+                console.error("[v0] Mensagem:", err.message);
+                console.error("[v0] Stack:", err.stack);
                 showLoading(false);
                 
                 if (err.name === 'AbortError') {
