@@ -185,7 +185,7 @@
         
         // *** IMPORTANTE: Substitua pela URL do seu Web App do Apps Script ***
         // Se deixar vazio, o app funcionará em "Modo Demonstração" (Offline)
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzh_5Dd9ylVJrPP1sjLWFPglBwr4tLnpLLt3x9nsl3TZlcy_Nn2T80l4mYVixe3ylmC/exec"; 
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyTUehbMara_Z3GHgjwZ_Hp0Oy67Lco0OE3BGDod12b2p-3WSpUsui2_3P2nWdsefEh/exec"; 
 
         // =================================================================
         // LÓGICA DO APP
@@ -272,11 +272,26 @@
             try {
                 if (GOOGLE_SCRIPT_URL) {
                     // Modo Real
-                    await fetch(GOOGLE_SCRIPT_URL, {
+                    console.log("[v0] Enviando para:", GOOGLE_SCRIPT_URL);
+                    console.log("[v0] Payload:", payload);
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+                    
+                    const response = await fetch(GOOGLE_SCRIPT_URL, {
                         method: "POST",
                         body: JSON.stringify(payload),
-                        headers: { "Content-Type": "text/plain;charset=utf-8" } // Evita CORS preflight
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        signal: controller.signal,
+                        redirect: 'follow'
                     });
+                    
+                    clearTimeout(timeoutId);
+                    console.log("[v0] Resposta recebida:", response.status);
+                    
+                    if (!response.ok) {
+                        throw new Error(`Servidor retornou status ${response.status}`);
+                    }
                 } else {
                     // Modo Demo (LocalStorage)
                     await mockSave(payload);
@@ -288,7 +303,15 @@
 
             } catch (err) {
                 showLoading(false);
-                alert('Erro ao salvar: ' + err.message);
+                console.error("[v0] Erro ao salvar:", err);
+                
+                if (err.name === 'AbortError') {
+                    alert('Erro: Tempo limite excedido. Verifique sua conexão.');
+                } else if (err.message.includes('Failed to fetch')) {
+                    alert('Erro de conexão. Verifique:\n1. Se a URL do Apps Script está correta\n2. Se o script foi implantado como "Qualquer pessoa pode acessar"\n3. Sua conexão com a internet');
+                } else {
+                    alert('Erro ao salvar: ' + err.message);
+                }
             }
         }
 
@@ -307,33 +330,64 @@
                 let data = [];
                 if (GOOGLE_SCRIPT_URL) {
                     // Modo Real
+                    console.log("[v0] Consultando dados...");
+                    console.log("[v0] URL:", GOOGLE_SCRIPT_URL);
+                    console.log("[v0] Período:", start, "até", end);
+                    
+                    const payload = { action: 'read', startDate: start, endDate: end };
+                    console.log("[v0] Payload:", payload);
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+                    
                     const response = await fetch(GOOGLE_SCRIPT_URL, {
                         method: "POST",
-                        body: JSON.stringify({ action: 'read', startDate: start, endDate: end }),
-                        headers: { "Content-Type": "text/plain;charset=utf-8" }
+                        body: JSON.stringify(payload),
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        signal: controller.signal,
+                        redirect: 'follow'
                     });
                     
+                    clearTimeout(timeoutId);
+                    console.log("[v0] Status da resposta:", response.status);
+                    console.log("[v0] Headers:", response.headers);
+                    
                     if (!response.ok) {
-                        throw new Error('Erro na resposta do servidor: ' + response.status);
+                        throw new Error(`Servidor retornou status ${response.status}`);
                     }
                     
-                    const json = await response.json();
+                    const textResponse = await response.text();
+                    console.log("[v0] Resposta do servidor:", textResponse);
+                    
+                    const json = JSON.parse(textResponse);
+                    console.log("[v0] JSON parseado:", json);
                     
                     if (json.result === 'error') {
                         throw new Error(json.error || 'Erro desconhecido ao buscar dados');
                     }
                     
                     data = json.data || [];
+                    console.log("[v0] Dados recebidos:", data.length, "registros");
                 } else {
                     // Modo Demo
+                    console.log("[v0] Modo demo - usando localStorage");
                     data = await mockRead(start, end);
                 }
 
                 renderResults(data, start, end);
 
             } catch (err) {
-                console.error('Erro detalhado:', err);
-                alert('Erro ao consultar: ' + err.message);
+                console.error("[v0] Erro detalhado:", err);
+                showLoading(false);
+                
+                if (err.name === 'AbortError') {
+                    alert('Erro: Tempo limite excedido ao buscar dados. Verifique sua conexão com a internet.');
+                } else if (err.message.includes('Failed to fetch')) {
+                    alert('Erro de conexão ao buscar dados.\n\nVerifique:\n1. Se a URL do Apps Script está correta e atualizada\n2. Se o script foi implantado com acesso "Qualquer pessoa"\n3. Se você fez um novo deploy após editar o código\n4. Sua conexão com a internet\n\nURL atual: ' + GOOGLE_SCRIPT_URL.substring(0, 50) + '...');
+                } else {
+                    alert('Erro ao consultar: ' + err.message);
+                }
+                return;
             } finally {
                 showLoading(false);
             }
